@@ -1,0 +1,3 @@
+[submodule "components/components/finrisk/FinRisk"]
+	path = components/components/finrisk/FinRisk
+	url = https://github.com/DelinM/FinRisk.git
