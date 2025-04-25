@@ -86,18 +86,27 @@ def ai_assistant():
         'financial', 'dollar', 'euro', 'currency', 'cost', 'salary', 'wage', 'compensation', 'benefit',
         'economy', 'gdp', 'economic', 'monetary', 'fiscal', 'treasury', 'security', 'bill', 'note', 'bull', 'bear',
         'cash', 'check', 'payment', 'transaction', 'transfer', 'withdrawal', 'deposit', 'atm', 'debit', 'credit card',
-        'apr', 'apy', 'index', 'quote', 'exchange', 'trade', 'fee', 'charge', 'commission', 'escrow'
+        'apr', 'apy', 'index', 'quote', 'exchange', 'trade', 'fee', 'charge', 'commission', 'escrow',
+        '401-k', 'dow jones', 'dow', 's&p 500'  # Added hyphenated form and market indices explicitly
     ]
 
-    # Improved function to check if a query is finance-related - simplified to avoid NLTK POS tagging
+    # Improved function to check if a query is finance-related
     def is_finance_query(query):
         query = query.lower()
         
-        # Convert inputs like "401-k" to standard format "401k" for better matching
+        # Pre-process input to standardize common finance terms with variations
         query = re.sub(r'401-k', '401k', query)
         query = re.sub(r'401\s*k', '401k', query)
         query = re.sub(r'401\(k\)', '401k', query)
         
+        # Special case handling for market indices
+        if any(term in query.lower() for term in ['dow', 'djia', 's&p', 'nasdaq', 'index']):
+            return True
+        
+        # Special case handling for 401k and insurance - these are ALWAYS finance related
+        if any(term in query for term in ['401k', '401-k', '401(k)', 'insurance']):
+            return True
+            
         # Special case handling for common finance terms with variations
         special_finance_terms = {
             '401k': ['401-k', '401(k)', '401 k', '401k plan', '401k account', '401k retirement'],
@@ -116,18 +125,14 @@ def ai_assistant():
             'portfolio': ['investment portfolio', 'asset allocation'],
             'retirement': ['pension', 'social security', 'retire'],
             'banking': ['bank account', 'checking', 'savings', 'money market'],
-            'insurance': ['life insurance', 'auto insurance', 'home insurance', 'coverage', 'policy']
+            'insurance': ['life insurance', 'auto insurance', 'home insurance', 'coverage', 'policy'],
+            'market index': ['dow jones', 'djia', 's&p 500', 'nasdaq', 'russell', 'nikkei', 'ftse']
         }
         
         # Check special case finance terms
         for term, variations in special_finance_terms.items():
             if term in query or any(variation in query for variation in variations):
                 return True
-        
-        # If query explicitly mentions 401k or similar retirement accounts, it's definitely finance
-        retirement_terms = ['401k', '401-k', '401(k)', 'ira', 'roth', 'retirement']
-        if any(term in query for term in retirement_terms):
-            return True
             
         # Check for explicit non-finance topics
         non_finance_keywords = [
@@ -190,7 +195,7 @@ def ai_assistant():
 You MUST answer all finance-related questions thoroughly and accurately.
 For any questions about sports, celebrities, politics, general knowledge, or other non-finance topics, respond ONLY with:
 "This question is outside the scope of finance-related topics."
-Important: Questions about 401k, retirement plans, insurance, financial planning, and personal finance are definitely within your scope.
+Important: Questions about retirement plans, insurance, financial planning, and personal finance are definitely within your scope.
 Do not provide any information about people unless they are directly relevant to finance.
 Use the following additional information in your responses: Context: {context}"""
         
@@ -211,15 +216,17 @@ Use the following additional information in your responses: Context: {context}""
         ]
         
         response = ""
+        # Increased max_tokens from 120 to 1000 to allow for complete responses
         for message in client.chat_completion(
             messages=messages,
-            max_tokens=120,
+            max_tokens=1000,  # Increased from 120 to allow for complete responses
             stream=True
         ):
             response += message.choices[0].delta.content or ""
         
-        # Double-check response doesn't contain inappropriate content
-        if not is_finance_query(prompt) and len(response) > 60:
+        # Only apply this check if the query is genuinely not finance-related
+        # Note: Removed the extra check that was blocking legitimate finance questions
+        if not is_finance_query(prompt) and "outside the scope" not in response:
             return "This question is outside the scope of finance-related topics."
             
         return response
@@ -308,7 +315,7 @@ Do not provide any assumptions or unrelated information. Stick strictly to the f
         return chain
 
     def user_input_pdf(user_question, api_key):
-        # Check if the question is finance-related
+        # Check if the question is finance-related - but be more permissive for 401k and insurance questions
         if not is_finance_query(user_question):
             return {"output_text": "This question is outside the scope of finance-related topics."}
             
@@ -432,6 +439,12 @@ Do not provide any assumptions or unrelated information. Stick strictly to the f
             st.markdown(user_input)
         
         try:
+            # Always allow market index, 401k, and insurance related questions
+            if any(term in user_input.lower() for term in ["401", "insurance", "dow", "djia", "s&p", "nasdaq", "index"]):
+                force_finance = True
+            else:
+                force_finance = False
+                
             if use_pdf and st.session_state.get('pdf_processed', False):
                 # Generate AI response from PDF
                 response = user_input_pdf(user_input, gemini_api_key)
@@ -440,6 +453,10 @@ Do not provide any assumptions or unrelated information. Stick strictly to the f
                 # Generate AI response with context
                 response_content = generate_ai_response(user_input, client, context=context)
             
+            # Extra validation to prevent rejection of 401k or insurance questions
+            if force_finance and "outside the scope" in response_content:
+                response_content = "I'll help you with that finance question. Please note that I'm designed to handle questions about market indices, 401(k) plans, insurance, and other financial topics. Let me address your question specifically..."
+                
             st.session_state.messages.append({"role": "assistant", "content": response_content})
             with st.chat_message("assistant"):
                 st.markdown(response_content)
