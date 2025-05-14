@@ -58,8 +58,8 @@ def stock():
     </style>
         """, unsafe_allow_html=True)
     
-    st.title('Stock Price Predictions')
-    st.sidebar.info('Welcome to the Stock Price Prediction App. Choose your options below')
+    st.title('FinMate Stock Price Predictions')
+    st.sidebar.info('Welcome to FinMate. Choose your options below')
 
     @st.cache_resource
     def download_data(op, start_date, end_date):

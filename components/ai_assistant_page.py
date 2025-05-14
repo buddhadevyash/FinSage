@@ -113,7 +113,7 @@ Rules:
     if "messages" not in st.session_state:
         st.session_state.messages = [{"role": "assistant", "content": "How can I help you with finance today?"}]
 
-    st.title("💰 Financial AI Assistant")
+    st.title("FinMate AI Assistant")
 
     # Display chat messages
     for message in st.session_state.messages:
